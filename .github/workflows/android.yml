@@ -1,0 +1,50 @@
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Install Android SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;28.1.13356709"
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y imagemagick cmake ninja-build pkg-config
+      - name: Prepare SDK/NDK paths
+        run: |
+          mkdir -p android
+          ln -sfn "$ANDROID_SDK_ROOT/ndk/28.1.13356709" android/android-ndk
+          ln -sfn "$ANDROID_SDK_ROOT" android/android-sdk
+      - name: Build native dependencies
+        working-directory: android
+        env:
+          NDK_PATH: ./android-ndk
+          SDK_PATH: ./android-sdk
+          COMPILE_ARCH: aarch64
+        run: ../android/make_deps.sh
+      - name: Build debug APK
+        working-directory: android
+        env:
+          NDK_PATH: ./android-ndk
+          SDK_PATH: ./android-sdk
+          COMPILE_ARCH: aarch64
+          BUILD_TYPE: debug
+        run: ./make.sh
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: kaslik-kart-rush-debug-arm64
+          path: android/bin/*.apk
+          if-no-files-found: error
