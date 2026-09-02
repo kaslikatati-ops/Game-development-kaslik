@@ -36,9 +36,9 @@ export CONVERT_TO_JPG_DEFAULT=1
 export ONLY_ASSETS_DEFAULT=0
 
 export ASSETS_PATHS_DEFAULT="../data                    \
-                             ../../stk-assets           \
-                             ../../supertuxkart-assets"
-                             
+                              ../../stk-assets           \
+                              ../../supertuxkart-assets"
+                              
 export OUTPUT_PATH_DEFAULT="assets"
 
 export ASSETS_DIRS="library models music sfx textures"
@@ -124,25 +124,34 @@ if [ -z "$OUTPUT_PATH" ]; then
 fi
 
 # Find assets path
+ASSETS_PATH_FOUND=0
 for ASSETS_PATH in $ASSETS_PATHS; do
-    if [ -d $ASSETS_PATH ] && [ `ls $ASSETS_PATH | grep -c tracks` -gt 0 ]; then
+    # Convert to absolute path if it's relative
+    if [[ ! "$ASSETS_PATH" = /* ]]; then
+        ASSETS_PATH="$(cd "$(dirname "$ASSETS_PATH")" 2>/dev/null && pwd)/$(basename "$ASSETS_PATH")"
+    fi
+    
+    if [ -d "$ASSETS_PATH" ] && [ "$(ls "$ASSETS_PATH" 2>/dev/null | grep -c tracks)" -gt 0 ]; then
         echo "Assets found in $ASSETS_PATH"
         ASSETS_PATH_FOUND=1
         break
     fi
 done
 
-if [ -z $ASSETS_PATH_FOUND ]; then
-    echo "Couldn't find assets path"
+if [ $ASSETS_PATH_FOUND -eq 0 ]; then
+    echo "ERROR: Couldn't find assets path in:"
+    for P in $ASSETS_PATHS; do
+        echo "  - $P"
+    done
     exit 1
 fi
 
 if [ ! -d "../data" ]; then
-    echo "Couldn't find data directory"
+    echo "ERROR: Couldn't find data directory"
     exit 1
 fi
 
-# Use `magick` when it's available
+# Use 'magick' when it's available
 if command -v magick > /dev/null; then
     MAGICK='magick'
 else
@@ -159,11 +168,11 @@ echo "Copy all assets"
 
 mkdir -p "$OUTPUT_PATH/data"
 
-for DIR in `ls $ASSETS_PATH`; do
+for DIR in $(ls "$ASSETS_PATH" 2>/dev/null); do
     CAN_BE_COPIED=0
 
     for ASSETS_DIR in $ASSETS_DIRS; do
-        if [ $DIR = $ASSETS_DIR ]; then
+        if [ "$DIR" = "$ASSETS_DIR" ]; then
             CAN_BE_COPIED=1
             break
         fi
@@ -172,7 +181,7 @@ for DIR in `ls $ASSETS_PATH`; do
     # Don't copy karts and tracks. It will be handled later
     BLACKLIST_ASSETS="karts tracks"
     for ASSETS_DIR in $BLACKLIST_ASSETS; do
-        if [ $DIR = $ASSETS_DIR ]; then
+        if [ "$DIR" = "$ASSETS_DIR" ]; then
             CAN_BE_COPIED=0
             break
         fi
@@ -189,12 +198,17 @@ echo "Copy selected tracks"
 
 mkdir -p "$OUTPUT_PATH/data/tracks"
 
-for DIR in `ls $ASSETS_PATH/tracks`; do
+if [ ! -d "$ASSETS_PATH/tracks" ]; then
+    echo "ERROR: Tracks directory not found at $ASSETS_PATH/tracks"
+    exit 1
+fi
+
+for DIR in $(ls "$ASSETS_PATH/tracks" 2>/dev/null); do
     CAN_BE_COPIED=0
 
     if [ "$TRACKS" != "all" ]; then
         for TRACK in $TRACKS; do
-            if [ $DIR = $TRACK ]; then
+            if [ "$DIR" = "$TRACK" ]; then
                 CAN_BE_COPIED=1
                 break
             fi
@@ -208,18 +222,28 @@ for DIR in `ls $ASSETS_PATH/tracks`; do
     fi
 done
 
+if [ ! -d "$OUTPUT_PATH/data/tracks" ] || [ -z "$(ls "$OUTPUT_PATH/data/tracks" 2>/dev/null)" ]; then
+    echo "ERROR: No tracks were copied"
+    exit 1
+fi
+
 
 # Copy selected karts
 echo "Copy selected karts"
 
 mkdir -p "$OUTPUT_PATH/data/karts"
 
-for DIR in `ls $ASSETS_PATH/karts`; do
+if [ ! -d "$ASSETS_PATH/karts" ]; then
+    echo "ERROR: Karts directory not found at $ASSETS_PATH/karts"
+    exit 1
+fi
+
+for DIR in $(ls "$ASSETS_PATH/karts" 2>/dev/null); do
     CAN_BE_COPIED=0
 
     if [ "$KARTS" != "all" ]; then
         for KART in $KARTS; do
-            if [ $DIR = $KART ]; then
+            if [ "$DIR" = "$KART" ]; then
                 CAN_BE_COPIED=1
                 break
             fi
@@ -232,6 +256,11 @@ for DIR in `ls $ASSETS_PATH/karts`; do
         cp -a "$ASSETS_PATH/karts/$DIR" "$OUTPUT_PATH/data/karts/"
     fi
 done
+
+if [ ! -d "$OUTPUT_PATH/data/karts" ] || [ -z "$(ls "$OUTPUT_PATH/data/karts" 2>/dev/null)" ]; then
+    echo "ERROR: No karts were copied"
+    exit 1
+fi
 
 
 # Decrease assets quality in order to save some disk space and RAM
@@ -251,7 +280,7 @@ convert_image()
     W=`identify -format "%[fx:w]" "$FILE"`
     H=`identify -format "%[fx:h]" "$FILE"`
 
-    if [ -z $W ] || [ -z $H ]; then
+    if [ -z "$W" ] || [ -z "$H" ]; then
         echo "Couldn't convert $FILE file"
         return
     fi
@@ -259,8 +288,8 @@ convert_image()
     SCALE_CMD=""
     QUALITY_CMD=""
 
-    if [ $W -gt $TEXTURE_SIZE ] || [ $H -gt $TEXTURE_SIZE ]; then
-        if [ $W -gt $H ]; then
+    if [ "$W" -gt "$TEXTURE_SIZE" ] || [ "$H" -gt "$TEXTURE_SIZE" ]; then
+        if [ "$W" -gt "$H" ]; then
             SCALED_W=$TEXTURE_SIZE
             SCALED_H=$(($TEXTURE_SIZE * $H / $W))
         else
@@ -283,7 +312,7 @@ convert_image()
         SIZE_OLD=`du -k "$FILE" | cut -f1`
         SIZE_NEW=`du -k "tmp.$FILE_TYPE" | cut -f1`
 
-        if [ $SIZE_NEW -lt $SIZE_OLD ]; then
+        if [ "$SIZE_NEW" -lt "$SIZE_OLD" ]; then
             mv "tmp.$FILE_TYPE" "$FILE"
         fi
     fi
@@ -326,7 +355,7 @@ convert_sound()
         SIZE_OLD=`du -k "$FILE" | cut -f1`
         SIZE_NEW=`du -k "tmp.ogg" | cut -f1`
 
-        if [ $SIZE_NEW -lt $SIZE_OLD ]; then
+        if [ "$SIZE_NEW" -lt "$SIZE_OLD" ]; then
             mv tmp.ogg "$FILE"
         fi
     fi
@@ -642,9 +671,9 @@ convert_to_jpg_update_xml()
 
 
 if [ $DECREASE_QUALITY -gt 0 ]; then
-    find "$OUTPUT_PATH/data" -iname "*.png" | while read f; do convert_image "$f" "png"; done
-    find "$OUTPUT_PATH/data" -iname "*.jpg" | while read f; do convert_image "$f" "jpg"; done
-    find "$OUTPUT_PATH/data" -iname "*.ogg" | while read f; do convert_sound "$f"; done
+    find "$OUTPUT_PATH/data" -iname "*.png" 2>/dev/null | while read f; do convert_image "$f" "png"; done
+    find "$OUTPUT_PATH/data" -iname "*.jpg" 2>/dev/null | while read f; do convert_image "$f" "jpg"; done
+    find "$OUTPUT_PATH/data" -iname "*.ogg" 2>/dev/null | while read f; do convert_sound "$f"; done
 fi
 
 
@@ -653,12 +682,12 @@ if [ $CONVERT_TO_JPG -gt 0 ]; then
     
     find "$OUTPUT_PATH/data" -not -path "$OUTPUT_PATH/data/textures/*" \
                              -not -path "$OUTPUT_PATH/data/karts/*"    \
-                             -iname "*.png" | while read f; do convert_to_jpg "$f"; done
+                             -iname "*.png" 2>/dev/null | while read f; do convert_to_jpg "$f"; done
 
-    find "$OUTPUT_PATH/data" -iname "*.b3dz" | while read f; do convert_to_jpg_extract_b3dz "$f"; done
-    find "$OUTPUT_PATH/data" -iname "*.b3d" | while read f; do convert_to_jpg_update_b3d "$f"; done
-    find "$OUTPUT_PATH/data" -iname "*.spm" | while read f; do convert_to_jpg_update_spm "$f"; done
-    find "$OUTPUT_PATH/data" -iname "*.xml" | while read f; do convert_to_jpg_update_xml "$f"; done
+    find "$OUTPUT_PATH/data" -iname "*.b3dz" 2>/dev/null | while read f; do convert_to_jpg_extract_b3dz "$f"; done
+    find "$OUTPUT_PATH/data" -iname "*.b3d" 2>/dev/null | while read f; do convert_to_jpg_update_b3d "$f"; done
+    find "$OUTPUT_PATH/data" -iname "*.spm" 2>/dev/null | while read f; do convert_to_jpg_update_spm "$f"; done
+    find "$OUTPUT_PATH/data" -iname "*.xml" 2>/dev/null | while read f; do convert_to_jpg_update_xml "$f"; done
 
     if [ -s "./converted_textures" ]; then
         echo "Converted textures:"
@@ -668,13 +697,17 @@ if [ $CONVERT_TO_JPG -gt 0 ]; then
 fi
 
 if [ $DECREASE_QUALITY -gt 0 ]; then
-    find "$OUTPUT_PATH/data" -iname "*.png" | while read f; do optimize_png "$f" "png"; done
+    find "$OUTPUT_PATH/data" -iname "*.png" 2>/dev/null | while read f; do optimize_png "$f" "png"; done
 fi
 
 
 # Copy data directory
 if [ $ONLY_ASSETS -eq 0 ]; then
     echo "Copy data directory"
+    if [ ! -d ../data ]; then
+        echo "ERROR: ../data directory not found"
+        exit 1
+    fi
     cp -a ../data/* "$OUTPUT_PATH/data"
 fi
 
@@ -688,27 +721,27 @@ done
 # Run optimize_data.sh script
 if [ $RUN_OPTIMIZE_SCRIPT -gt 0 ]; then
     echo "Run optimize_data.sh script"
-    sh -c "cd "$OUTPUT_PATH/data"; ../../../data/optimize_data.sh"
+    sh -c "cd \"$OUTPUT_PATH/data\"; ../../../data/optimize_data.sh"
 fi
 
 
 # Generate files list
 echo "Generate files list"
-find "$OUTPUT_PATH"/* -type d| sort > tmp1.txt
+find "$OUTPUT_PATH"/* -type d 2>/dev/null | sort > tmp1.txt
 if [ "$OS_NAME" = "Darwin" ]; then
-    sed -i "" 's/$/\//' tmp1.txt
+    sed -i "" 's/$/\\//' tmp1.txt
 else
-    sed -i 's/$/\//' tmp1.txt
+    sed -i 's/$/\\//' tmp1.txt
 fi
-find "$OUTPUT_PATH"/* -type f| sort > tmp2.txt
+find "$OUTPUT_PATH"/* -type f 2>/dev/null | sort > tmp2.txt
 cat tmp1.txt tmp2.txt | sort > "$OUTPUT_PATH/files.txt"
-rm tmp1.txt tmp2.txt
+rm -f tmp1.txt tmp2.txt
 if [ "$OS_NAME" = "Darwin" ]; then
-    sed -i "" s/".\/$OUTPUT_PATH\/"// "$OUTPUT_PATH/files.txt"
-    sed -i "" s/"$OUTPUT_PATH\/"// "$OUTPUT_PATH/files.txt"
+    sed -i "" s/".\/$OUTPUT_PATH\\/"// "$OUTPUT_PATH/files.txt"
+    sed -i "" s/"$OUTPUT_PATH\\/"// "$OUTPUT_PATH/files.txt"
 else
-    sed -i s/".\/$OUTPUT_PATH\/"// "$OUTPUT_PATH/files.txt"
-    sed -i s/"$OUTPUT_PATH\/"// "$OUTPUT_PATH/files.txt"
+    sed -i s/".\/$OUTPUT_PATH\\/"// "$OUTPUT_PATH/files.txt"
+    sed -i s/"$OUTPUT_PATH\\/"// "$OUTPUT_PATH/files.txt"
 fi
 
 # A file that can be used to check if apk has assets
