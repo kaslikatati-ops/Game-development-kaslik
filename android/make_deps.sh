@@ -24,8 +24,8 @@ export CMAKE_POLICY_VERSION_MINIMUM=3.5
 check_error()
 {
     if [ $? -gt 0 ]; then
-        echo "Error ocurred."
-        exit
+        echo "Error occurred."
+        exit 1
     fi
 }
 
@@ -410,7 +410,7 @@ ndk_path = '$NDK_PATH'
 [binaries]
 ar = ndk_path / 'toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-ar'
 c = ['ccache', ndk_path / 'toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang']
-cpp = ['ccache', ndk_path / 'toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++', '-fno-exceptions', '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '-static-libstdc++', '-Wno-c++11-narrowing']
+cpp = ['ccache', ndk_path / 'toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android26-clang++', '-fno-exceptions', '-fno-unwind-tables', '-fno-asynchronous-unwind-tables', '-static-libstdc++'[...]
 c_ld = 'lld'
 cpp_ld = 'lld'
 
