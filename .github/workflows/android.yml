@@ -25,14 +25,34 @@ jobs:
         with:
           packages: ""
 
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses || true
-
       - name: Install Android SDK packages
         run: |
-          sdkmanager "platform-tools" \
-                     "platforms;android-35" \
-                     "build-tools;35.0.0"
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-35"
+          sdkmanager "build-tools;35.0.0"
+
+      - name: Install Android NDK 28.1.13356709
+        run: |
+          set -euo pipefail
+
+          sdkmanager --install "ndk;28.1.13356709"
+
+          NDK_DIR="$ANDROID_SDK_ROOT/ndk/28.1.13356709"
+
+          if [ ! -d "$NDK_DIR" ]; then
+            echo "ERROR: NDK was not installed at:"
+            echo "$NDK_DIR"
+            echo
+            echo "Installed NDK versions:"
+            ls -la "$ANDROID_SDK_ROOT/ndk" || true
+            exit 1
+          fi
+
+          echo "NDK successfully installed:"
+          echo "$NDK_DIR"
+
+          echo "ANDROID_NDK_HOME=$NDK_DIR" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=$NDK_DIR" >> "$GITHUB_ENV"
 
       - name: Install build tools
         run: |
@@ -45,38 +65,79 @@ jobs:
 
       - name: Prepare SDK and NDK paths
         run: |
+          set -euo pipefail
+
           mkdir -p android
 
-          # make_deps.sh expects:
-          # android/android-ndk/28.1.13356709
+          # Project expects android/android-ndk/28.1.13356709
           ln -sfn "$ANDROID_SDK_ROOT/ndk" android/android-ndk
 
-          # make.sh expects the SDK directly here
+          # Project expects the Android SDK here
           ln -sfn "$ANDROID_SDK_ROOT" android/android-sdk
+
+          echo "android/android-ndk -> $(readlink android/android-ndk)"
+          echo "android/android-sdk -> $(readlink android/android-sdk)"
+
+          test -d "android/android-ndk/28.1.13356709"
+          test -d "android/android-sdk/platforms/android-35"
+          test -d "android/android-sdk/build-tools/35.0.0"
 
       - name: Make build scripts executable
         run: |
-          chmod +x android/gradlew
-          chmod +x android/make_deps.sh
-          chmod +x android/make.sh
+          set -euo pipefail
 
-          # Make any other shell scripts executable if present
+          chmod +x android/gradlew
+          chmod +x android/make.sh
+          chmod +x android/make_deps.sh
+
           find android -type f -name "*.sh" -exec chmod +x {} \;
 
-          echo "Executable permissions:"
+          echo "gradlew:"
           ls -l android/gradlew
-          ls -l android/make_deps.sh
+
+          echo "make.sh:"
           ls -l android/make.sh
+
+          echo "make_deps.sh:"
+          ls -l android/make_deps.sh
 
       - name: Verify Android toolchain
         run: |
+          set -euo pipefail
+
+          echo "Java:"
           java -version
+
+          echo
+          echo "CMake:"
           cmake --version
+
+          echo
+          echo "Ninja:"
           ninja --version
-          "$ANDROID_SDK_ROOT/platform-tools/adb" version
-          test -d "$ANDROID_SDK_ROOT/ndk/28.1.13356709"
-          echo "NDK found:"
-          ls "$ANDROID_SDK_ROOT/ndk/28.1.13356709"
+
+          echo
+          echo "ADB:"
+          adb version
+
+          echo
+          echo "SDK:"
+          echo "$ANDROID_SDK_ROOT"
+
+          echo
+          echo "NDK:"
+          echo "$ANDROID_NDK_HOME"
+
+          test -d "$ANDROID_NDK_HOME"
+          test -f "$ANDROID_NDK_HOME/source.properties"
+
+          echo
+          echo "NDK source.properties:"
+          cat "$ANDROID_NDK_HOME/source.properties"
+
+          echo
+          echo "NDK Clang:"
+          "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/clang" --version
 
       - name: Build native dependencies
         working-directory: android
@@ -86,7 +147,8 @@ jobs:
           STK_NDK_VERSION: 28.1.13356709
           COMPILE_ARCH: aarch64
         run: |
-          ./make_deps.sh aarch64
+          set -euo pipefail
+          ./make_deps.sh
 
       - name: Build debug APK
         working-directory: android
@@ -97,12 +159,28 @@ jobs:
           COMPILE_ARCH: aarch64
           BUILD_TYPE: debug
         run: |
+          set -euo pipefail
           ./make.sh
 
       - name: Find generated APK
         run: |
-          echo "Searching for APK..."
-          find android/bin -type f -name "*.apk" -print
+          set -euo pipefail
+
+          echo "Searching for APK files..."
+
+          find android/bin \
+            -type f \
+            -name "*.apk" \
+            -print
+
+          APK_COUNT=$(find android/bin -type f -name "*.apk" | wc -l)
+
+          if [ "$APK_COUNT" -eq 0 ]; then
+            echo "ERROR: No APK was generated."
+            exit 1
+          fi
+
+          echo "Found $APK_COUNT APK file(s)."
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
