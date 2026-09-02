@@ -15,11 +15,15 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          ndk-version: '28.1.13356709'
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
       - name: Install Android SDK packages
-        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0" "ndk;28.1.13356709"
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
       - name: Install build tools
         run: sudo apt-get update && sudo apt-get install -y imagemagick cmake ninja-build pkg-config
       - name: Prepare SDK/NDK paths
@@ -33,7 +37,7 @@ jobs:
           NDK_PATH: ./android-ndk
           SDK_PATH: ./android-sdk
           COMPILE_ARCH: aarch64
-        run: ../android/make_deps.sh
+        run: ./make_deps.sh
       - name: Build debug APK
         working-directory: android
         env:
