@@ -65,17 +65,27 @@ jobs:
       - name: Download Android game assets
         run: |
           set -e
-          ASSET_DIR="$GITHUB_WORKSPACE/../../stk-assets"
+          ASSET_DIR="$GITHUB_WORKSPACE/stk-assets"
           rm -rf "$ASSET_DIR"
           mkdir -p "$ASSET_DIR"
+          echo "Downloading assets to: $ASSET_DIR"
           curl -fL --retry 5 \
             "https://github.com/supertuxkart/stk-assets-mobile/releases/download/git/stk-assets-full.zip" \
             -o /tmp/stk-assets-full.zip
           unzip -q /tmp/stk-assets-full.zip -d "$ASSET_DIR"
           rm -f /tmp/stk-assets-full.zip
-          test -d "$ASSET_DIR/tracks"
-          test -d "$ASSET_DIR/karts"
-          echo "Android game assets are ready."
+          
+          # Verify asset directories
+          if [ ! -d "$ASSET_DIR/tracks" ]; then
+            echo "ERROR: tracks directory not found at $ASSET_DIR/tracks"
+            ls -la "$ASSET_DIR" || true
+            exit 1
+          fi
+          if [ ! -d "$ASSET_DIR/karts" ]; then
+            echo "ERROR: karts directory not found at $ASSET_DIR/karts"
+            exit 1
+          fi
+          echo "Android game assets verified successfully."
 
       - name: Prepare SDK and NDK paths
         run: |
@@ -110,7 +120,11 @@ jobs:
           TRACKS: all
           DECREASE_QUALITY: "1"
           CONVERT_TO_JPG: "1"
-        run: ./generate_assets.sh
+          ASSETS_PATHS: "${{ github.workspace }}/stk-assets"
+        run: |
+          set -e
+          echo "ASSETS_PATHS=$ASSETS_PATHS"
+          ./generate_assets.sh
 
       - name: Build native dependencies
         working-directory: android
@@ -144,3 +158,4 @@ jobs:
           name: kaslik-kart-rush-debug-arm64
           path: android/bin/*.apk
           if-no-files-found: error
+          
