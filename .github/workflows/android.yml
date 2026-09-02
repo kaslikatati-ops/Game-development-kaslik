@@ -3,7 +3,7 @@ name: Android APK
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build-android:
@@ -30,11 +30,11 @@ jobs:
         run: |
           mkdir -p android
           ln -sfn "$ANDROID_SDK_ROOT/ndk/28.1.13356709" android/android-ndk
-                - name: Make scripts executable
+          ln -sfn "$ANDROID_SDK_ROOT" android/android-sdk
+      - name: Make scripts executable
         run: |
           chmod +x android/make_deps.sh
           chmod +x android/make.sh
-          ln -sfn "$ANDROID_SDK_ROOT" android/android-sdk
       - name: Build native dependencies
         working-directory: android
         env:
